@@ -12,7 +12,27 @@ if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "postgresql://placeholder:place
   echo "⚠️ WARNING: DATABASE_URL is not set or contains the placeholder. Skipping database migrations."
 else
   echo "📦 Database URL is present. Running Prisma migrations..."
-  npx prisma migrate deploy --schema=prisma/schema.prisma || echo "⚠️ Prisma migration failed, starting API server anyway."
+  
+  MAX_RETRIES=6
+  RETRY_COUNT=0
+  MIGRATION_SUCCESS=false
+
+  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if npx prisma migrate deploy --schema=prisma/schema.prisma; then
+      MIGRATION_SUCCESS=true
+      echo "✅ Prisma migrations applied successfully!"
+      break
+    else
+      RETRY_COUNT=$((RETRY_COUNT+1))
+      echo "⚠️ Migration attempt $RETRY_COUNT failed. Database might still be booting. Retrying in 10 seconds..."
+      sleep 10
+    fi
+  done
+
+  if [ "$MIGRATION_SUCCESS" = "false" ]; then
+    echo "❌ ERROR: Prisma migration failed after $MAX_RETRIES attempts. Exiting so container restarts."
+    exit 1
+  fi
 fi
 
 echo "🟢 Booting API process..."
