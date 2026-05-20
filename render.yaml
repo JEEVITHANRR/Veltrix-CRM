@@ -1,3 +1,11 @@
+databases:
+  # ─── PostgreSQL Database ──────────────────────────────────
+  - name: veltrix-db
+    plan: free
+    databaseName: veltrix
+    user: veltrix
+    region: oregon
+
 services:
   # ─── API Server ───────────────────────────────────────────
   - type: web
@@ -9,7 +17,9 @@ services:
     startCommand: rm -f .env && npx prisma migrate deploy --schema=prisma/schema.prisma && node apps/api/dist/index.js
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: veltrix-db
+          property: connectionString
       - key: REDIS_URL
         sync: false
       - key: JWT_SECRET
@@ -45,7 +55,9 @@ services:
     startCommand: rm -f .env && node apps/worker/dist/index.js
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: veltrix-db
+          property: connectionString
       - key: REDIS_URL
         sync: false
       - key: NODE_ENV
