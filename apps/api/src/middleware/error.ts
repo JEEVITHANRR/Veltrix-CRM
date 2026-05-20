@@ -34,5 +34,10 @@ export function errorMiddleware(
     return res.status(err.statusCode).json({ success: false, error: err.message })
   }
 
-  return res.status(500).json({ success: false, error: 'Internal server error' })
+  return res.status(500).json({ 
+    success: false, 
+    error: 'Internal server error',
+    message: err.message,
+    stack: err.stack
+  })
 }
