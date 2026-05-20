@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate --schema=prisma/schema.prisma
-    startCommand: npx prisma migrate deploy --schema=prisma/schema.prisma && node apps/api/dist/index.js
+    startCommand: rm -f .env && npx prisma migrate deploy --schema=prisma/schema.prisma && node apps/api/dist/index.js
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -28,7 +28,7 @@ services:
     region: oregon
     plan: free
     buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=apps/web
-    startCommand: npm run start --workspace=apps/web
+    startCommand: rm -f .env && npm run start --workspace=apps/web
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://veltrix-api.onrender.com
@@ -42,7 +42,7 @@ services:
     region: oregon
     plan: free
     buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=apps/worker && npx prisma generate --schema=prisma/schema.prisma
-    startCommand: node apps/worker/dist/index.js
+    startCommand: rm -f .env && node apps/worker/dist/index.js
     envVars:
       - key: DATABASE_URL
         sync: false
