@@ -1,0 +1,267 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+  engineType = "wasm"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum Plan {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum JobType {
+  SUMMARIZE_LEAD
+  SCORE_LEAD
+  FOLLOWUP_EMAIL
+  SUMMARIZE_CONVERSATION
+}
+
+enum ActivityType {
+  NOTE
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  CALL
+  MEETING
+  STAGE_CHANGE
+  AI_INSIGHT
+  WHATSAPP
+}
+
+// ─── Models ────────────────────────────────────────────
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(FREE)
+  aiUsage   Int      @default(0)
+  aiLimit   Int      @default(10)
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members    WorkspaceMember[]
+  leads      Lead[]
+  contacts   Contact[]
+  activities Activity[]
+  aiJobs     AIJob[]
+  projects   Project[]
+  messages   Message[]
+
+  @@index([slug])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspaces WorkspaceMember[]
+  aiJobs     AIJob[]
+
+  @@index([email])
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  role        Role      @default(MEMBER)
+  joinedAt    DateTime  @default(now())
+  userId      String
+  workspaceId String
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model Lead {
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  company     String?
+  title       String?
+  stage       LeadStage @default(NEW)
+  score       Int?
+  value       Float?
+  source      String?
+  notes       String?
+  aiSummary   String?
+  tags        String[]
+  workspaceId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities Activity[]
+  aiJobs     AIJob[]
+
+  @@index([workspaceId])
+  @@index([stage])
+  @@index([email])
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  company     String?
+  title       String?
+  notes       String?
+  tags        String[]
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  title       String
+  body        String?
+  metadata    Json?
+  workspaceId String
+  leadId      String?
+  contactId   String?
+  createdAt   DateTime     @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contact   Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([leadId])
+  @@index([contactId])
+}
+
+model AIJob {
+  id          String    @id @default(cuid())
+  type        JobType
+  status      JobStatus @default(QUEUED)
+  input       Json
+  output      Json?
+  error       String?
+  promptVersion String  @default("v1")
+  workspaceId String
+  leadId      String?
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead      Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId])
+  @@index([status])
+  @@index([leadId])
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  title        String
+  description  String
+  summary      String?
+  stack        String[]
+  imageUrl     String?
+  deployUrl    String?
+  repoUrl      String?
+  featured     Boolean  @default(false)
+  order        Int      @default(0)
+  workspaceId  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([featured])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  subject     String?
+  body        String
+  read        Boolean  @default(false)
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String
+  published   Boolean  @default(false)
+  coverImage  String?
+  tags        String[]
+  authorId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([published])
+}
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  author    String
+  role      String?
+  company   String?
+  avatar    String?
+  body      String
+  rating    Int      @default(5)
+  featured  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

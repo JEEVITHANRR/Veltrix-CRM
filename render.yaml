@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: veltrix-api
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate && npx prisma migrate deploy
+    startCommand: node apps/api/dist/index.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: veltrix-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: veltrix-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: CORS_ORIGIN
+        value: https://veltrix.vercel.app
+
+  - type: worker
+    name: veltrix-worker
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: npm install && npm run build --workspace=apps/worker && npx prisma generate
+    startCommand: node apps/worker/dist/index.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: veltrix-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: veltrix-redis
+          type: redis
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: redis
+    name: veltrix-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: veltrix-db
+    databaseName: veltrix_crm
+    user: veltrix
+    region: oregon
+    plan: starter
