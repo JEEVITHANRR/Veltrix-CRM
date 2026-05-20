@@ -1,10 +1,11 @@
 services:
+  # ─── API Server ───────────────────────────────────────────
   - type: web
     name: veltrix-api
     env: node
     region: oregon
-    plan: starter
-    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate && npx prisma migrate deploy
+    plan: free
+    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate --schema=prisma/schema.prisma && npx prisma migrate deploy --schema=prisma/schema.prisma
     startCommand: node apps/api/dist/index.js
     envVars:
       - key: DATABASE_URL
@@ -21,16 +22,31 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 4000
+        value: "4000"
       - key: CORS_ORIGIN
-        value: https://veltrix.vercel.app
+        value: https://veltrix-web.onrender.com
 
+  # ─── Next.js Web Frontend ─────────────────────────────────
+  - type: web
+    name: veltrix-web
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/web
+    startCommand: npm run start --workspace=apps/web
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://veltrix-api.onrender.com
+      - key: NODE_ENV
+        value: production
+
+  # ─── Background Worker ────────────────────────────────────
   - type: worker
     name: veltrix-worker
     env: node
     region: oregon
-    plan: starter
-    buildCommand: npm install && npm run build --workspace=apps/worker && npx prisma generate
+    plan: free
+    buildCommand: npm install && npm run build --workspace=apps/worker && npx prisma generate --schema=prisma/schema.prisma
     startCommand: node apps/worker/dist/index.js
     envVars:
       - key: DATABASE_URL
@@ -47,10 +63,11 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
+  # ─── Redis ────────────────────────────────────────────────
   - type: redis
     name: veltrix-redis
     region: oregon
-    plan: starter
+    plan: free
     maxmemoryPolicy: noeviction
 
 databases:
@@ -58,4 +75,4 @@ databases:
     databaseName: veltrix_crm
     user: veltrix
     region: oregon
-    plan: starter
+    plan: free
