@@ -27,7 +27,8 @@ function generateSlug(name: string): string {
 }
 
 function signToken(payload: object): string {
-  return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions)
+  const secret = process.env.JWT_SECRET || 'veltrix-super-secret-key-fallback-for-safety-998877'
+  return jwt.sign(payload, secret, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions)
 }
 
 // POST /api/auth/register
