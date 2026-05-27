@@ -43,6 +43,9 @@ if echo "$SCHEMA_URL" | grep -q "pooler.supabase.com"; then
   SCHEMA_URL=$(fix_supabase_url "$SCHEMA_URL")
 fi
 
+# Export DIRECT_URL so Prisma schema.prisma's directUrl = env("DIRECT_URL") works
+export DIRECT_URL="${DIRECT_URL:-$DATABASE_URL}"
+
 # ─── Database Schema Sync ──────────────────────────────────
 if [ -z "$DATABASE_URL" ] || echo "$DATABASE_URL" | grep -q "placeholder"; then
   echo "⚠️ WARNING: DATABASE_URL not set. Skipping database setup."
