@@ -9,57 +9,27 @@ echo "📋 Environment: ${NODE_ENV:-development}"
 # Remove any build-time placeholder .env
 rm -f .env
 
-# ─── Fix Supabase Pooler URL ────────────────────────────────
-# Pooler URLs (port 6543) don't support DDL and cause "Tenant or user not found" errors.
-# Convert them to direct connections (port 5432).
-
-fix_supabase_url() {
-  local url="$1"
-  
-  if echo "$url" | grep -q "pooler.supabase.com:6543"; then
-    # Extract project ref from username (format: postgres.PROJECT_REF)
-    local PROJECT_REF=$(echo "$url" | sed -n 's|.*postgresql://postgres\.\([^:]*\):.*|\1|p')
-    local PASSWORD=$(echo "$url" | sed -n 's|.*postgresql://[^:]*:\([^@]*\)@.*|\1|p')
-    local DATABASE=$(echo "$url" | sed -n 's|.*/\([^?]*\).*|\1|p')
-    
-    if [ -n "$PROJECT_REF" ] && [ -n "$PASSWORD" ]; then
-      echo "postgresql://postgres:${PASSWORD}@db.${PROJECT_REF}.supabase.co:5432/${DATABASE}"
-      return 0
-    fi
-  fi
-  
-  echo "$url"
-}
-
-if echo "$DATABASE_URL" | grep -q "pooler.supabase.com"; then
-  FIXED_URL=$(fix_supabase_url "$DATABASE_URL")
-  export DATABASE_URL="$FIXED_URL"
-  echo "✅ Converted pooler URL to direct connection"
-fi
-
-# Use DIRECT_URL for schema operations if available
-SCHEMA_URL="${DIRECT_URL:-$DATABASE_URL}"
-if echo "$SCHEMA_URL" | grep -q "pooler.supabase.com"; then
-  SCHEMA_URL=$(fix_supabase_url "$SCHEMA_URL")
-fi
-
-# Export DIRECT_URL so Prisma schema.prisma's directUrl = env("DIRECT_URL") works
+# ─── Set DIRECT_URL if not already set ──────────────────────
+# Prisma schema uses directUrl = env("DIRECT_URL") for migrations.
+# If DIRECT_URL is not set, default to DATABASE_URL.
 export DIRECT_URL="${DIRECT_URL:-$DATABASE_URL}"
 
 # ─── Database Schema Sync ──────────────────────────────────
+# Use DIRECT_URL for schema operations (direct connection, not pooler)
+SCHEMA_URL="$DIRECT_URL"
+
 if [ -z "$DATABASE_URL" ] || echo "$DATABASE_URL" | grep -q "placeholder"; then
   echo "⚠️ WARNING: DATABASE_URL not set. Skipping database setup."
 else
   echo "📦 Syncing database schema..."
   
-  # Use prisma db push — it's idempotent and doesn't need migration files.
-  # It compares the schema.prisma to the actual DB and applies changes.
+  # Use prisma db push — idempotent, compares schema.prisma to actual DB
   MAX_RETRIES=3
   RETRY=0
   SUCCESS=false
 
   while [ $RETRY -lt $MAX_RETRIES ]; do
-    if DATABASE_URL="$SCHEMA_URL" npx prisma db push --schema=prisma/schema.prisma --accept-data-loss 2>&1; then
+    if DATABASE_URL="$SCHEMA_URL" DIRECT_URL="$SCHEMA_URL" npx prisma db push --schema=prisma/schema.prisma --accept-data-loss 2>&1; then
       SUCCESS=true
       echo "✅ Database schema synced successfully!"
       break
@@ -72,11 +42,11 @@ else
 
   if [ "$SUCCESS" = "false" ]; then
     echo "❌ Database schema sync failed after $MAX_RETRIES attempts."
-    echo "⚠️ Starting API anyway — endpoints may fail if tables don't exist."
+    echo "⚠️ Starting API anyway — tables should already exist."
   fi
   
-  # Also generate the Prisma client (in case it's stale)
-  DATABASE_URL="$SCHEMA_URL" npx prisma generate --schema=prisma/schema.prisma 2>&1 || true
+  # Regenerate Prisma client
+  npx prisma generate --schema=prisma/schema.prisma 2>&1 || true
 fi
 
 # ─── Print diagnostic info ──────────────────────────────────
@@ -84,7 +54,9 @@ echo ""
 echo "═══════════════════════════════════════════════════════"
 echo "  Veltrix API — Startup Diagnostics"
 echo "═══════════════════════════════════════════════════════"
-echo "  DATABASE_URL: ${DATABASE_URL:0:50}..."
+DB_SAFE=$(echo "$DATABASE_URL" | sed 's/:[^@]*@/:***@/g' | head -c 80)
+echo "  DATABASE_URL: ${DB_SAFE}..."
+echo "  DIRECT_URL:   ${DIRECT_URL:+SET}${DIRECT_URL:-NOT SET}"
 echo "  REDIS_URL:    ${REDIS_URL:-NOT SET (AI queue disabled)}"
 echo "  PORT:         ${PORT:-4000}"
 echo "  CORS_ORIGIN:  ${CORS_ORIGIN:-http://localhost:3000}"
