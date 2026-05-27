@@ -11,6 +11,8 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: REDIS_URL
         sync: false
       - key: JWT_SECRET
@@ -46,6 +48,8 @@ services:
     startCommand: rm -f .env && node apps/worker/dist/index.js
     envVars:
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
         sync: false
       - key: REDIS_URL
         sync: false
