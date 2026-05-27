@@ -1,17 +1,31 @@
 // apps/api/src/routes/ai.ts
 import { Router, Request, Response } from 'express'
 import { z } from 'zod'
-import { Queue } from 'bullmq'
 import { prisma } from '../config/prisma'
-import { redis, defaultJobOptions } from '../config/redis'
+import { getRedis, defaultJobOptions } from '../config/redis'
 import { authenticate, asyncHandler } from '../middleware/auth'
 import { AppError } from '../middleware/error'
 
 const router = Router()
 router.use(authenticate)
 
-// BullMQ queue
-const aiQueue = new Queue('ai-jobs', { connection: redis, defaultJobOptions })
+// BullMQ queue — created lazily only when Redis is available
+let aiQueue: any = null
+
+async function getAiQueue() {
+  if (aiQueue) return aiQueue
+  
+  const redis = await getRedis()
+  if (!redis) return null
+
+  try {
+    const { Queue } = await import('bullmq')
+    aiQueue = new Queue('ai-jobs', { connection: redis, defaultJobOptions })
+    return aiQueue
+  } catch {
+    return null
+  }
+}
 
 const jobSchema = z.object({
   type: z.enum(['SUMMARIZE_LEAD', 'SCORE_LEAD', 'FOLLOWUP_EMAIL', 'SUMMARIZE_CONVERSATION']),
@@ -45,16 +59,25 @@ router.post('/jobs', asyncHandler(async (req: Request, res: Response) => {
     },
   })
 
-  // Enqueue BullMQ job
-  await aiQueue.add(body.type, {
-    jobId: aiJob.id,
-    type: body.type,
-    leadId: body.leadId,
-    workspaceId: req.user!.workspaceId,
-    userId: req.user!.userId,
-    input: body.input,
-    promptVersion: body.promptVersion,
-  })
+  // Try to enqueue BullMQ job (only if Redis is available)
+  const queue = await getAiQueue()
+  if (queue) {
+    await queue.add(body.type, {
+      jobId: aiJob.id,
+      type: body.type,
+      leadId: body.leadId,
+      workspaceId: req.user!.workspaceId,
+      userId: req.user!.userId,
+      input: body.input,
+      promptVersion: body.promptVersion,
+    })
+  } else {
+    // Mark job as failed gracefully when Redis is not available
+    await prisma.aIJob.update({
+      where: { id: aiJob.id },
+      data: { status: 'FAILED', error: 'AI queue not available (Redis not configured)' },
+    })
+  }
 
   // Increment usage
   await prisma.workspace.update({
@@ -64,7 +87,7 @@ router.post('/jobs', asyncHandler(async (req: Request, res: Response) => {
 
   res.status(202).json({
     success: true,
-    data: { jobId: aiJob.id, status: 'queued', type: body.type },
+    data: { jobId: aiJob.id, status: queue ? 'queued' : 'failed', type: body.type },
   })
 }))
 

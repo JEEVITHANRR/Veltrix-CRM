@@ -97,5 +97,5 @@ dump.rdb
 redis-stable/
 redis-stable.tar.gz
 
-# Prisma schema generated clients
-/prisma/migrations/
+# Prisma — migrations MUST be committed (needed for production deploys)
+# /prisma/migrations/
