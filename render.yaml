@@ -1,12 +1,12 @@
 
 services:
-  # ─── API Server ───────────────────────────────────────────
+  # ─── API Server (Backend Only) ──────────────────────────────
   - type: web
     name: veltrix-api
     env: node
     region: oregon
     plan: free
-    buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate --schema=prisma/schema.prisma
+    buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && echo 'DIRECT_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' >> .env && npm install --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npx prisma generate --schema=prisma/schema.prisma
     startCommand: bash start-api.sh
     envVars:
       - key: DATABASE_URL
@@ -22,21 +22,7 @@ services:
       - key: PORT
         value: "4000"
       - key: CORS_ORIGIN
-        value: https://veltrix-web.onrender.com
-
-  # ─── Next.js Web Frontend ─────────────────────────────────
-  - type: web
-    name: veltrix-web
-    env: node
-    region: oregon
-    plan: free
-    buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=packages/shared && npm run build --workspace=apps/web
-    startCommand: rm -f .env && npm run start --workspace=apps/web
-    envVars:
-      - key: NEXT_PUBLIC_API_URL
-        value: https://veltrix-api.onrender.com
-      - key: NODE_ENV
-        value: production
+        sync: false
 
   # ─── Background Worker ────────────────────────────────────
   - type: worker
@@ -44,7 +30,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && npm install --include=dev && npm run build --workspace=apps/worker && npx prisma generate --schema=prisma/schema.prisma
+    buildCommand: echo 'DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' > .env && echo 'DIRECT_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"' >> .env && npm install --include=dev && npm run build --workspace=apps/worker && npx prisma generate --schema=prisma/schema.prisma
     startCommand: rm -f .env && node apps/worker/dist/index.js
     envVars:
       - key: DATABASE_URL
