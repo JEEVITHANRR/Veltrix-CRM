@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build --workspace=packages/shared && npm run build --workspace=apps/web",
+  "buildCommand": "npm run build --workspace=@veltrix/shared && npm run build --workspace=@veltrix/web",
   "installCommand": "npm install",
   "framework": "nextjs",
   "outputDirectory": "apps/web/.next"
